@@ -21,7 +21,6 @@ if (-not $gpp) {
 }
 
 # --- Compile all .c and .cpp files ---
-if(!$Run){
 Get-ChildItem $Src -File | Where-Object {
     $_.Extension -in ".c", ".cpp"
 } | ForEach-Object {
@@ -36,7 +35,6 @@ Get-ChildItem $Src -File | Where-Object {
         $srcFile `
         -o $outExe `
         -I"$Header" `
-}
 }
 # --- Run executable if argument provided ---
 if ($Run) {
