@@ -7,109 +7,145 @@
 
 class Engine{
     
+    private:
+        wchar_t *Primaryscreen;
+        wchar_t *Secondaryscreen;
+        int32_t secScreenWidth;
+        int32_t secScreenHeight;
+        int32_t primaryScreenWidth;
+        int32_t primaryScreenHeight;
+        int primaryCells;
+        int secondaryCells;
+
+        HANDLE hconsolebuffer;
+        DWORD written = 0;
+
     public:
-        wchar_t *screen;
-        int32_t screenWidth;
-        int32_t screenHeight;
-        int32_t newScreenWidth;
-        int32_t newScreenHeight;
-        int32_t Cells;
+        bool keepBorder = true;
+
+        ~Engine() {
+            delete[] Primaryscreen;
+            delete[] Secondaryscreen;
+            CloseHandle(hconsolebuffer);
+        }
 
 
         void
+        writePrimaryScreenBuffer(const COORD coord = {0, 0}){
+            WriteConsoleOutputCharacterW(hconsolebuffer, Primaryscreen, primaryCells, coord, &written);
+        }
+
+        void
         border(const wchar_t borderSymCols = '|', const wchar_t borderSymRows = '_'){
-            Cells = screenWidth * screenHeight;
 
             //Horizontal rows border
-            for(int i = 1; i < screenWidth - 1; i++) {screen[i] = borderSymRows;}
-            for(int i = Cells - screenWidth; i < Cells; i++ ){screen[i] = borderSymRows;}
+            for(int i = 1; i < primaryScreenWidth - 1; i++) {Primaryscreen[i] = borderSymRows;}
+            for(int i = primaryCells - primaryScreenWidth; i < primaryCells; i++ ){Primaryscreen[i] = borderSymRows;}
             
             //Vertical cols border
-            for(int i = screenWidth, j = 2*screenWidth - 1; i < Cells || j < Cells; i += screenWidth, j += screenWidth){screen[i] = borderSymCols; 
-                screen[j] = borderSymCols;
+            for(int i = primaryScreenWidth, j = 2 * primaryScreenWidth - 1; i < primaryCells || j < primaryCells; i += primaryScreenWidth, j += primaryScreenWidth){Primaryscreen[i] = borderSymCols; 
+                Primaryscreen[j] = borderSymCols;
             }
-
-            newScreenWidth = screenWidth - 2; newScreenHeight = screenHeight - 2;
-            
         }
 
         HANDLE
-        construct(const int32_t W = 143, const int32_t H = 40){
-            screenWidth = W; screenHeight = H;
+        construct(const int32_t W = 141, const int32_t H = 38){
+            secScreenWidth = W; secScreenHeight = H;
+            primaryScreenWidth = W + 2; primaryScreenHeight = H + 2;
+            primaryCells = primaryScreenWidth * primaryScreenHeight;
+            secondaryCells = secScreenWidth * secScreenHeight;
+
 
             // Allocating a console and a scrren buffer
-            screen = new wchar_t[screenWidth * screenHeight];
+            Secondaryscreen = new wchar_t[secScreenWidth * secScreenHeight];
+            Primaryscreen = new wchar_t[primaryScreenWidth * primaryScreenHeight];
             
             if (GetConsoleWindow() == NULL) {
                 AllocConsole();
             }
-            HANDLE hConsoleBuffer = CreateConsoleScreenBuffer(GENERIC_READ| GENERIC_WRITE, 0, NULL, CONSOLE_TEXTMODE_BUFFER, NULL);
-            SetConsoleActiveScreenBuffer(hConsoleBuffer);
+            
+            hconsolebuffer = CreateConsoleScreenBuffer(GENERIC_READ| GENERIC_WRITE, 0, NULL, CONSOLE_TEXTMODE_BUFFER, NULL);
+            SetConsoleActiveScreenBuffer(hconsolebuffer);
 
             SMALL_RECT rect = {0, 0, 1, 1};
-            SetConsoleWindowInfo(hConsoleBuffer, TRUE, &rect);
+            SetConsoleWindowInfo(hconsolebuffer, TRUE, &rect);
 
-            COORD bufferSize = {(SHORT)screenWidth, (SHORT)screenHeight};
-            SetConsoleScreenBufferSize(hConsoleBuffer, bufferSize);
+            COORD bufferSize = {(SHORT)primaryScreenWidth, (SHORT)primaryScreenHeight};
+            SetConsoleScreenBufferSize(hconsolebuffer, bufferSize);
 
-            SMALL_RECT windowSize = {0, 0, (SHORT)(screenWidth - 1),(SHORT)(screenHeight - 1)};
-            SetConsoleWindowInfo(hConsoleBuffer, TRUE, &windowSize);
+            SMALL_RECT windowSize = {0, 0, (SHORT)(primaryScreenWidth - 1),(SHORT)(primaryScreenHeight - 1)};
+            SetConsoleWindowInfo(hconsolebuffer, TRUE, &windowSize);
 
+            clearPrimary();
             clear();
-            border();
+            if(keepBorder) border();
 
-            return hConsoleBuffer;
+            return hconsolebuffer;
         }
 
         void
         Draw(const COORD& coord, const wchar_t& sym){
             int x = coord.X, y = coord.Y;
-            if((x < 0 || x >= screenWidth) ||(y < 0 || y >= screenHeight)) return;
+            if((x < 0 || x >= secScreenWidth) ||(y < 0 || y >= secScreenHeight) ) return;
 
-            int index = y * screenWidth + x;
-            screen[index] = sym;
+            int index = y * secScreenWidth + x;
+            Secondaryscreen[index] = sym;
         }
 
         void
         DrawString(const COORD& coord, const wchar_t *text){
             int x = coord.X, y = coord.Y;
-            if((x < 0 || x >= screenWidth) ||(y < 0 || y >= screenHeight)) return;
+            if((x < 0 || x >= secScreenWidth) ||(y < 0 || y >= secScreenHeight)) return;
 
-            int index = y * screenWidth + x;
+            int index = y * secScreenWidth + x;
 
-            for(int i = 0; text[i] != '\0'; i++ ){
-                screen[index + i] = text[i];
+            for(int i = 0; text[i] != '\0' && x + i < secScreenWidth; i++ ){
+                Secondaryscreen[index + i] = text[i];
             }
         }
 
         void
         clear(const wchar_t clear_sym = ' '){
-            for(int i = 0; i < screenHeight * screenWidth; i++){
-                screen[i] = clear_sym;
+            for(int i = 0; i < secScreenHeight * secScreenWidth; i++){
+                Secondaryscreen[i] = clear_sym;
             }
         }
+
+        void
+        clearPrimary(const wchar_t clear_sym = ' '){
+            for(int i = 0; i < primaryScreenHeight * primaryScreenWidth; i++){
+                Primaryscreen[i] = clear_sym;
+            }
+        }
+
+        void 
+        Compose() {
+            for (int y = 0; y < secScreenHeight; y++) {
+                for (int x = 0; x < secScreenWidth; x++) {
+                    Primaryscreen[(y + 1) * primaryScreenWidth + (x + 1)] = Secondaryscreen[y * secScreenWidth + x];
+                }
+            }
+        }
+
 
 };
 
 int
 main(){
-        Engine game;
-        HANDLE hConsoleBuffer = game.construct();
 
-        // getting HANDLE from std_input_buffer
-        HANDLE hIn = GetStdHandle(STD_INPUT_HANDLE);
+    Engine game;
+    game.construct();
+    COORD coord = {0, 0};
 
-        PINPUT_RECORD record;
-        LPDWORD read;
-        DWORD written = 0;
-        COORD writecoord = {0, 0};
-        COORD mycoord = {1, 1};
-
-        game.Draw(mycoord,'#');
-        WriteConsoleOutputCharacterW(hConsoleBuffer, game.screen, game.Cells, writecoord, &written);
-        sleep(1000);
-
-        CloseHandle(hConsoleBuffer);
+    //Game Loop
+    while(1){
+        game.DrawString(coord, L"Hi! From Console");
+        game.Compose();
+        game.writePrimaryScreenBuffer();
+        coord.X += 2; coord.Y += 2;
+        game.clear();
+        Sleep(1000);
+    }
 
     return 0;
 }
