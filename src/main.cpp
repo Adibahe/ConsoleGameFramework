@@ -23,7 +23,7 @@ class Engine{
     public:
         bool keepBorder = true;
 
-        ~Engine() {
+        ~Engine() { // destroyer
             delete[] Primaryscreen;
             delete[] Secondaryscreen;
             CloseHandle(hconsolebuffer);
@@ -35,6 +35,7 @@ class Engine{
             WriteConsoleOutputCharacterW(hconsolebuffer, Primaryscreen, primaryCells, coord, &written);
         }
 
+        // creates border for console screen
         void
         border(const wchar_t borderSymCols = '|', const wchar_t borderSymRows = '_'){
 
@@ -48,8 +49,10 @@ class Engine{
             }
         }
 
-        HANDLE
-        construct(const int32_t W = 141, const int32_t H = 38){
+        // constructs allocates console ,ConsoleScreen buffers, constructs primary, secondary screen buffers 
+        // and initializes variables
+        HANDLE 
+        construct(const int32_t W = 141, const int32_t H = 38){   
             secScreenWidth = W; secScreenHeight = H;
             primaryScreenWidth = W + 2; primaryScreenHeight = H + 2;
             primaryCells = primaryScreenWidth * primaryScreenHeight;
@@ -67,6 +70,7 @@ class Engine{
             hconsolebuffer = CreateConsoleScreenBuffer(GENERIC_READ| GENERIC_WRITE, 0, NULL, CONSOLE_TEXTMODE_BUFFER, NULL);
             SetConsoleActiveScreenBuffer(hconsolebuffer);
 
+            // sets console window, consoleScreenBuffer sizes
             SMALL_RECT rect = {0, 0, 1, 1};
             SetConsoleWindowInfo(hconsolebuffer, TRUE, &rect);
 
@@ -76,9 +80,9 @@ class Engine{
             SMALL_RECT windowSize = {0, 0, (SHORT)(primaryScreenWidth - 1),(SHORT)(primaryScreenHeight - 1)};
             SetConsoleWindowInfo(hconsolebuffer, TRUE, &windowSize);
 
-            clearPrimary();
-            clear();
-            if(keepBorder) border();
+            clearPrimary(); // clears primaryScreen(containing border)
+            clear(); // clears secondaryScreen(containing actual game pieces)
+            if(keepBorder) border(); 
 
             return hconsolebuffer;
         }
@@ -119,7 +123,7 @@ class Engine{
         }
 
         void 
-        Compose() {
+        Compose() { // adds secdonaryScreen data over PrimaryScreen with a offset of (1, 1)
             for (int y = 0; y < secScreenHeight; y++) {
                 for (int x = 0; x < secScreenWidth; x++) {
                     Primaryscreen[(y + 1) * primaryScreenWidth + (x + 1)] = Secondaryscreen[y * secScreenWidth + x];
