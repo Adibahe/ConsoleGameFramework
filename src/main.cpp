@@ -2,7 +2,7 @@
 #include<stdio.h>
 #include<windows.h>
 #include<algorithm>
-#include<unistd.h>
+#include<chrono>
 
 
 class Engine{
@@ -25,7 +25,7 @@ class Engine{
 
 
     public:
-
+        int32_t frameTime;
         bool keepBorder = true;
 
         ~Engine() { // destructor
@@ -182,24 +182,86 @@ class Engine{
             }
         }
 
+        void destroy(){
+            delete[] Primaryscreen;
+            delete[] Secondaryscreen;
+            CloseHandle(hconsolebuffer);
+        }
 
+        void
+        run(){
+
+            if(!LoadState()){std::cerr << "Loading failed" << std::endl;}
+            std::chrono::time_point tp1 =  std::chrono::steady_clock::now();
+
+            //Game loop
+            while(1){
+                if (GetAsyncKeyState(VK_ESCAPE) & 0x8000)
+                break;
+
+                std::chrono::time_point tp2 = std::chrono::steady_clock::now();
+                std::chrono::duration<float> elapsedTime = tp2 - tp1;
+                tp1 = tp2;
+
+                update(elapsedTime.count());
+                render();
+                Sleep(250);
+            }
+            destroy();
+
+        }
+        
+        virtual bool
+        LoadState(){return true;}
+
+        virtual bool
+        update(float elapsedT){ return true;}
+
+        virtual bool
+        render(){ return true;}
+
+
+
+
+};
+
+class dummy: public Engine{
+
+    public:
+
+        COORD pos = {0,0};
+
+        bool LoadState() override{
+            if(!construct()){std::cerr << "Console construction failed!" << std::endl; return false;}
+            clear(BACKGROUND_GREEN| BACKGROUND_RED | BACKGROUND_INTENSITY);
+            return true;
+        }
+
+        void scene(){
+            DrawString(pos, L"Hi! From Console", FOREGROUND_GREEN | FOREGROUND_INTENSITY|BACKGROUND_RED|BACKGROUND_GREEN|BACKGROUND_INTENSITY);
+        }
+
+        bool update(float elapsedT) override{
+            scene();
+            pos.X++; pos.Y++;
+            return true;
+        }
+
+        bool render() override{
+            Compose();
+            writePrimaryScreenBuffer();
+            clear(BACKGROUND_GREEN| BACKGROUND_RED | BACKGROUND_INTENSITY);
+            return true;
+        }
+
+
+        
 };
 
 int
 main(){
 
-    Engine game;
-    if(!game.construct()) return 0;
-    COORD coord = {0, 0};
-    CHAR_INFO *subScreen = new CHAR_INFO[120 * 2];
-    //Game Loop
-    while(1){
-        game.DrawString(coord, L"Hi! From Console", FOREGROUND_GREEN);
-        game.Compose();
-        game.writePrimaryScreenBuffer();
-        coord.X += 2; coord.Y += 1;
-        game.clear();
-        Sleep(250);
-    }
+    dummy d;
+    d.run();
     return 0;
 }
