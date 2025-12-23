@@ -3,6 +3,7 @@
 #include<windows.h>
 #include<algorithm>
 #include<chrono>
+#include<vector>
 
 
 class Engine{
@@ -71,9 +72,8 @@ class Engine{
                 AllocConsole();
             }
             
-            // hconsolebuffer = CreateConsoleScreenBuffer(GENERIC_READ| GENERIC_WRITE, 0, NULL, CONSOLE_TEXTMODE_BUFFER, NULL);
-            hconsolebuffer = GetStdHandle(STD_OUTPUT_HANDLE);
-            // SetConsoleActiveScreenBuffer(hconsolebuffer);
+            hconsolebuffer = CreateConsoleScreenBuffer(GENERIC_READ | GENERIC_WRITE,0, NULL, CONSOLE_TEXTMODE_BUFFER, NULL);
+            if(!SetConsoleActiveScreenBuffer(hconsolebuffer)){return false;}
 
             // sets console window, consoleScreenBuffer sizes
             SMALL_RECT rect = {0,0,1,1};
