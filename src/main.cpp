@@ -20,9 +20,9 @@ class Engine{
         SMALL_RECT windowSize;
         HANDLE hOriginal;
         CONSOLE_SCREEN_BUFFER_INFO originalInfo;
-
-        HANDLE hconsolebuffer;
+        HANDLE hconsolebuffer[2];
         DWORD written = 0;
+        uint32_t activeBuffer = 0;
 
 
     public:
@@ -38,13 +38,17 @@ class Engine{
         ~Engine() { // destructor
             delete[] Primaryscreen;
             delete[] Secondaryscreen;
-            CloseHandle(hconsolebuffer);
+            CloseHandle(hconsolebuffer[0]);
+            CloseHandle(hconsolebuffer[1]);
         }
 
 
         void
         writePrimaryScreenBuffer(const COORD coord = {0, 0}){
-            WriteConsoleOutputW(hconsolebuffer, Primaryscreen, {(SHORT)primaryScreenWidth, (SHORT)primaryScreenHeight} , coord, &windowSize);
+            int back = 1 - activeBuffer;
+            WriteConsoleOutputW(hconsolebuffer[back], Primaryscreen, {(SHORT)primaryScreenWidth, (SHORT)primaryScreenHeight} , coord, &windowSize);
+            activeBuffer = back;
+            SetConsoleActiveScreenBuffer(hconsolebuffer[activeBuffer]);
         }
 
         // creates border for console screen
@@ -64,39 +68,61 @@ class Engine{
         // constructs allocates console ,ConsoleScreen buffers, constructs primary, secondary screen buffers 
         // and initializes variables
         bool 
-        construct(const int32_t W = 120, const int32_t H = 30){
-            secScreenWidth = W; secScreenHeight = H;
-            primaryScreenWidth = W + 2; primaryScreenHeight = H + 2;
-            primaryCells = primaryScreenWidth * primaryScreenHeight;
-            secondaryCells = secScreenWidth * secScreenHeight;
+        construct(const int32_t W = 120, const int32_t H = 30)
+        {
+            secScreenWidth = W;
+            secScreenHeight = H;
 
-            // Allocating a console and a scrren buffer
-            Secondaryscreen = new CHAR_INFO[secScreenWidth * secScreenHeight];
-            Primaryscreen = new CHAR_INFO[primaryScreenWidth * primaryScreenHeight];
-            
+            primaryScreenWidth  = W + 2;
+            primaryScreenHeight = H + 2;
+            secondaryCells = secScreenWidth * secScreenHeight;
+            primaryCells   = primaryScreenWidth * primaryScreenHeight;
+
+            Secondaryscreen = new CHAR_INFO[secondaryCells];
+            Primaryscreen   = new CHAR_INFO[primaryCells];
+
             if (GetConsoleWindow() == NULL) {
                 AllocConsole();
             }
-            
-            hconsolebuffer = CreateConsoleScreenBuffer(GENERIC_READ | GENERIC_WRITE,0, NULL, CONSOLE_TEXTMODE_BUFFER, NULL);
-            if(!SetConsoleActiveScreenBuffer(hconsolebuffer)){return false;}
 
-            // sets console window, consoleScreenBuffer sizes
-            SMALL_RECT rect = {0,0,1,1};
-            SetConsoleWindowInfo(hconsolebuffer, TRUE, &rect);
+            // Creates TWO console screen buffers
+            for (int i = 0; i < 2; i++) {
+                hconsolebuffer[i] = CreateConsoleScreenBuffer(GENERIC_READ | GENERIC_WRITE,0,NULL,CONSOLE_TEXTMODE_BUFFER,NULL);
+                if (hconsolebuffer[i] == INVALID_HANDLE_VALUE) return false;
+            }
 
-            COORD bufferSize = {(SHORT)primaryScreenWidth, (SHORT)primaryScreenHeight};
-            SetConsoleScreenBufferSize(hconsolebuffer, bufferSize);
+            SMALL_RECT tempRect = {0, 0, 1, 1};
+            for (int i = 0; i < 2; i++) {
+                SetConsoleWindowInfo(hconsolebuffer[i], TRUE, &tempRect);
+            }
 
-            windowSize = {0, 0, (SHORT)(primaryScreenWidth - 1),(SHORT)(primaryScreenHeight - 1)};
-            SetConsoleWindowInfo(hconsolebuffer, TRUE, &windowSize);
+            // Set buffer size
+            COORD bufferSize = {
+                (SHORT)primaryScreenWidth,
+                (SHORT)primaryScreenHeight
+            };
 
-            clearPrimary(); // clears primaryScreen(containing border)
-            clear(); // clears secondaryScreen(containing actual game pieces)
-            if(keepBorder) border(); 
+            for (int i = 0; i < 2; i++) {
+                SetConsoleScreenBufferSize(hconsolebuffer[i], bufferSize);
+            }
+
+            SMALL_RECT windowRect = {0,0,(SHORT)(primaryScreenWidth - 1), (SHORT)(primaryScreenHeight - 1)};
+
+            for (int i = 0; i < 2; i++) {
+                SetConsoleWindowInfo(hconsolebuffer[i], TRUE, &windowRect);
+            }
+            windowSize = windowRect;
+
+            activeBuffer = 0;
+            SetConsoleActiveScreenBuffer(hconsolebuffer[activeBuffer]);
+            clearPrimary();
+            clear();
+
+            if (keepBorder) border();
 
             return true;
         }
+
 
         void
         Draw(const vec pos, const wchar_t& sym, const WORD color = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE){
@@ -188,12 +214,6 @@ class Engine{
             }
         }
 
-        void destroy(){
-            delete[] Primaryscreen;
-            delete[] Secondaryscreen;
-            CloseHandle(hconsolebuffer);
-        }
-
         void
         run(){
 
@@ -211,9 +231,9 @@ class Engine{
 
                 update(elapsedTime.count());
                 render();
-                Sleep((1/(float)refreshRate) * 1000);
+
+                Sleep(1000/(float)refreshRate);
             }
-            destroy();
 
         }
         
@@ -225,10 +245,6 @@ class Engine{
 
         virtual bool
         render(){ return true;}
-
-
-
-
 };
 
 class dummy: public Engine{
@@ -236,7 +252,7 @@ class dummy: public Engine{
     public:
 
         vec pos = {0.0f, 0.0f};
-        vec velocity = {5,0.5};
+        vec velocity = {1,1};
 
         bool LoadState() override{
             if(!construct()){std::cerr << "Console construction failed!" << std::endl; return false;}
