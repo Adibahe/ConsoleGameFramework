@@ -28,6 +28,12 @@ class Engine{
     public:
         int32_t frameTime;
         bool keepBorder = true;
+        uint32_t refreshRate = 60; // FPS
+
+        struct vec{
+            float x;
+            float y;
+        };
 
         ~Engine() { // destructor
             delete[] Primaryscreen;
@@ -93,8 +99,8 @@ class Engine{
         }
 
         void
-        Draw(const COORD& coord, const wchar_t& sym, const WORD color = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE){
-            int x = coord.X, y = coord.Y;
+        Draw(const vec pos, const wchar_t& sym, const WORD color = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE){
+            int x = pos.x, y = pos.y;
             if((x < 0 || x >= secScreenWidth) ||(y < 0 || y >= secScreenHeight) ) return;
 
             int index = y * secScreenWidth + x;
@@ -103,8 +109,8 @@ class Engine{
         }
 
         void
-        DrawString(const COORD& coord, const wchar_t *text, const WORD color = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE){
-            int x = coord.X, y = coord.Y;
+        DrawString(const vec pos, const wchar_t *text, const WORD color = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE){
+            int x = pos.x, y = pos.y;
             if((x < 0 || x >= secScreenWidth) ||(y < 0 || y >= secScreenHeight) ) return;
 
             int index = (y) * secScreenWidth + (x);
@@ -117,9 +123,9 @@ class Engine{
 
         //Overloaded DrawString when using multiple subscreen or layers
         void
-        DrawString(const COORD& coord, const wchar_t *text, CHAR_INFO *screen, const int32_t W, const int32_t H , 
+        DrawString(const vec pos, const wchar_t *text, CHAR_INFO *screen, const int32_t W, const int32_t H , 
             const WORD color = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE){
-            int x = coord.X, y = coord.Y;
+            int x = pos.x, y = pos.y;
             if((x < 0 || x >= secScreenWidth) ||(y < 0 || y >= secScreenHeight) ) return;
             
             int index = (y) * W + (x);
@@ -205,7 +211,7 @@ class Engine{
 
                 update(elapsedTime.count());
                 render();
-                Sleep(250);
+                Sleep((1/(float)refreshRate) * 1000);
             }
             destroy();
 
@@ -229,28 +235,30 @@ class dummy: public Engine{
 
     public:
 
-        COORD pos = {0,0};
+        vec pos = {0.0f, 0.0f};
+        vec velocity = {5,0.5};
 
         bool LoadState() override{
             if(!construct()){std::cerr << "Console construction failed!" << std::endl; return false;}
-            clear(BACKGROUND_GREEN| BACKGROUND_RED | BACKGROUND_INTENSITY);
+            clear();
             return true;
         }
 
         void scene(){
-            DrawString(pos, L"Hi! From Console", FOREGROUND_GREEN | FOREGROUND_INTENSITY|BACKGROUND_RED|BACKGROUND_GREEN|BACKGROUND_INTENSITY);
+            DrawString(pos, L"Hi! From Console");
         }
 
         bool update(float elapsedT) override{
             scene();
-            pos.X++; pos.Y++;
+            pos.x += velocity.x * elapsedT;
+            pos.y += velocity.y * elapsedT;
             return true;
         }
 
         bool render() override{
             Compose();
             writePrimaryScreenBuffer();
-            clear(BACKGROUND_GREEN| BACKGROUND_RED | BACKGROUND_INTENSITY);
+            clear();
             return true;
         }
 
@@ -262,6 +270,7 @@ int
 main(){
 
     dummy d;
+    d.refreshRate = 60;
     d.run();
     return 0;
 }
