@@ -4,7 +4,76 @@
 #include<chrono>
 #include<vector>
 #include "keys.h"
+#include <cmath>
 // #include <windows.h>
+
+//Macros
+#define PI 22/7
+
+
+//classes
+class sprite{
+    public:
+
+};
+
+class Angle{
+
+    float rad;
+    float deg;
+
+    Angle(float r, float d): rad(r), deg(d){}
+    Angle(){}
+
+    static float toRad(const float deg){
+        return deg * PI/180;
+    }
+    static float toDeg(const float rad){
+        return rad * 180/PI;
+    }
+
+};
+
+class vec2f{
+    public:
+        float x;
+        float y;
+
+        vec2f(float X, float Y):x(X), y(Y){}
+
+        vec2f operator+(const vec2f &vec) const{
+            return vec2f(x + vec.x, y + vec.y);
+        }
+
+        vec2f operator-(const vec2f &vec) const{
+            return vec2f(x - vec.x, y - vec.y);
+        }
+
+        vec2f operator*(const float k) const{
+            return vec2f(x*k, y*k);
+        }
+
+        vec2f operator/(const float k) const{
+            return vec2f(x/k, y/k);
+        }
+
+        float mag(const vec2f &vec){
+            return (float)sqrt((vec.x * vec.x) + (vec.y * vec.y));
+        }
+
+        vec2f normalize(const vec2f &vec){
+            float len = mag(vec);
+            return vec2f(vec.x/len, vec.y/len);
+        }
+
+        float dot(const vec2f &vec1, const vec2f &vec2){
+            return (vec1.x * vec1.x) + (vec2.y * vec2.y);
+        }
+
+        float dis(const vec2f vec1, const vec2f vec2){
+            return (float)sqrt((vec1.x - vec2.x)*(vec1.x - vec2.x) + (vec1.y - vec2.y)*(vec1.y - vec2.y));
+        }
+};
 
 class Engine{
     
@@ -35,10 +104,7 @@ class Engine{
             bool held = false;
         } keys[256];
 
-        struct vec{
-            float x;
-            float y;
-        };
+        vec2f pos = {0.0f, 0.0f};
 
         ~Engine() { // destructor
             delete[] Primaryscreen;
@@ -130,7 +196,7 @@ class Engine{
 
 
         void
-        Draw(const vec pos, const wchar_t& sym, const WORD color = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE){
+        Draw(const vec2f pos, const wchar_t& sym, const WORD color = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE){
             int x = pos.x, y = pos.y;
             if((x < 0 || x >= secScreenWidth) ||(y < 0 || y >= secScreenHeight) ) return;
 
@@ -140,7 +206,7 @@ class Engine{
         }
 
         void
-        DrawString(const vec pos, const std::wstring text, const WORD color = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE){
+        DrawString(const vec2f pos, const std::wstring text, const WORD color = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE){
             int x = pos.x, y = pos.y;
             if((x < 0 || x >= secScreenWidth) ||(y < 0 || y >= secScreenHeight) ) return;
 
@@ -154,7 +220,7 @@ class Engine{
 
         //Overloaded DrawString when using multiple subscreen or layers
         void
-        DrawString(const vec pos, const std::wstring text, CHAR_INFO *screen, const int32_t W, const int32_t H , 
+        DrawString(const vec2f pos, const std::wstring text, CHAR_INFO *screen, const int32_t W, const int32_t H , 
             const WORD color = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE){
             int x = pos.x, y = pos.y;
             if((x < 0 || x >= secScreenWidth) ||(y < 0 || y >= secScreenHeight) ) return;
@@ -268,8 +334,8 @@ class dummy: public Engine{
 
     public:
 
-        vec pos = {0.0f, 0.0f};
-        vec velocity = {23.0,20.0};
+        vec2f pos = {0.0f, 0.0f};
+        vec2f velocity = {23.0,20.0};
 
         bool create() override{
             if(!construct()){std::cerr << "Console construction failed!" << std::endl; return false;}
