@@ -1,10 +1,10 @@
 #include<bits/stdc++.h>
 #include<stdio.h>
-#include<windows.h>
 #include<algorithm>
 #include<chrono>
 #include<vector>
-
+#include "keys.h"
+// #include <windows.h>
 
 class Engine{
     
@@ -29,6 +29,11 @@ class Engine{
         int32_t frameTime;
         bool keepBorder = true;
         uint32_t refreshRate = 60; // FPS
+        struct key{
+            bool pressed = false;
+            bool released = false;
+            bool held = false;
+        } keys[256];
 
         struct vec{
             float x;
@@ -135,7 +140,7 @@ class Engine{
         }
 
         void
-        DrawString(const vec pos, const wchar_t *text, const WORD color = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE){
+        DrawString(const vec pos, const std::wstring text, const WORD color = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE){
             int x = pos.x, y = pos.y;
             if((x < 0 || x >= secScreenWidth) ||(y < 0 || y >= secScreenHeight) ) return;
 
@@ -149,7 +154,7 @@ class Engine{
 
         //Overloaded DrawString when using multiple subscreen or layers
         void
-        DrawString(const vec pos, const wchar_t *text, CHAR_INFO *screen, const int32_t W, const int32_t H , 
+        DrawString(const vec pos, const std::wstring text, CHAR_INFO *screen, const int32_t W, const int32_t H , 
             const WORD color = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE){
             int x = pos.x, y = pos.y;
             if((x < 0 || x >= secScreenWidth) ||(y < 0 || y >= secScreenHeight) ) return;
@@ -214,31 +219,43 @@ class Engine{
             }
         }
 
+        bool updateInput(){
+            for(int i = 0; i < 256; i++){
+                bool state = GetAsyncKeyState(i) & 0x8000;
+                keys[i].pressed = state && !keys[i].held;
+                keys[i].released = !state && keys[i].held;
+                keys[i].held = state;
+
+            }
+            return true;
+        }
+
         void
         run(){
 
-            if(!LoadState()){std::cerr << "Loading failed" << std::endl;}
+            if(!create()){std::cerr << "creation failed!" << std::endl;}
             std::chrono::time_point tp1 =  std::chrono::steady_clock::now();
 
             //Game loop
             while(1){
-                if (GetAsyncKeyState(VK_ESCAPE) & 0x8000)
+                if (GetAsyncKeyState(KEY_ESCAPE) & 0x8000) // hit escape to close gameloop and exit
                 break;
 
                 std::chrono::time_point tp2 = std::chrono::steady_clock::now();
                 std::chrono::duration<float> elapsedTime = tp2 - tp1;
                 tp1 = tp2;
 
+                updateInput();
                 update(elapsedTime.count());
                 render();
 
                 Sleep(1000/(float)refreshRate);
             }
-
         }
         
+
         virtual bool
-        LoadState(){return true;}
+        create(){return true;}
 
         virtual bool
         update(float elapsedT){ return true;}
@@ -252,9 +269,9 @@ class dummy: public Engine{
     public:
 
         vec pos = {0.0f, 0.0f};
-        vec velocity = {1,1};
+        vec velocity = {23.0,20.0};
 
-        bool LoadState() override{
+        bool create() override{
             if(!construct()){std::cerr << "Console construction failed!" << std::endl; return false;}
             clear();
             return true;
@@ -265,9 +282,22 @@ class dummy: public Engine{
         }
 
         bool update(float elapsedT) override{
+
+            std::string str = "X: " + std::to_string(velocity.x) + " Y: " + std::to_string(velocity.y);
+            std::wstring wstr(str.begin(), str.end());
+
+            if(keys[KEY_UP].pressed) {velocity.y++; }
+            if(keys[KEY_DOWN].pressed) {velocity.y--; }
+            if(keys[KEY_RIGHT].pressed) {velocity.x++; }
+            if(keys[KEY_LEFT].pressed) {velocity.x--;}
+            
+            DrawString({0,28}, wstr);
+
+            if(keys['W'].held) {pos.y -= velocity.y * elapsedT; DrawString({0,29},L"pressed w");}
+            if(keys['S'].held) {pos.y += velocity.y * elapsedT; DrawString({0,29},L"pressed s");}
+            if(keys['A'].held) {pos.x -= velocity.x * elapsedT; DrawString({0,29},L"pressed a");}
+            if(keys['D'].held) {pos.x += velocity.x * elapsedT; DrawString({0,29},L"pressed d");}
             scene();
-            pos.x += velocity.x * elapsedT;
-            pos.y += velocity.y * elapsedT;
             return true;
         }
 
