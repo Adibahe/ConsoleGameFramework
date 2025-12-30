@@ -12,9 +12,47 @@
 
 
 //classes
-class sprite{
-    public:
 
+class vec2f{
+    public:
+        float x;
+        float y;
+
+        vec2f(){}
+        vec2f(float X, float Y){ x = X; y = Y;}
+
+        vec2f operator+(const vec2f &vec) const{
+            return vec2f(x + vec.x, y + vec.y);
+        }
+
+        vec2f operator-(const vec2f &vec) const{
+            return vec2f(x - vec.x, y - vec.y);
+        }
+
+        vec2f operator*(const float k) const{
+            return vec2f(x*k, y*k);
+        }
+
+        vec2f operator/(const float k) const{
+            return vec2f(x/k, y/k);
+        }
+
+        static float mag(const vec2f &vec){
+            return (float)sqrt((vec.x * vec.x) + (vec.y * vec.y));
+        }
+
+        static vec2f normalize(const vec2f &vec){
+            float len = mag(vec);
+            return vec2f(vec.x/len, vec.y/len);
+        }
+
+        static float dot(const vec2f &vec1, const vec2f &vec2){
+            return (vec1.x * vec1.x) + (vec2.y * vec2.y);
+        }
+
+        static float dis(const vec2f vec1, const vec2f vec2){
+            return (float)sqrt((vec1.x - vec2.x)*(vec1.x - vec2.x) + (vec1.y - vec2.y)*(vec1.y - vec2.y));
+        }
 };
 
 class Angle{
@@ -34,48 +72,31 @@ class Angle{
 
 };
 
-class vec2f{
-    public:
-        float x;
-        float y;
+class Sprite {
+public:
+    uint32_t H = 0, W = 0;
+    vec2f point{0.0f, 0.0f};
+    CHAR_INFO* body = nullptr;
 
-        vec2f(float X, float Y):x(X), y(Y){}
+    Sprite() = default;
 
-        vec2f operator+(const vec2f &vec) const{
-            return vec2f(x + vec.x, y + vec.y);
-        }
+    Sprite(uint32_t h, uint32_t w) : H(h), W(w) {
+        body = new CHAR_INFO[W * H]{};
+    }
 
-        vec2f operator-(const vec2f &vec) const{
-            return vec2f(x - vec.x, y - vec.y);
-        }
+    ~Sprite() {
+        delete[] body;
+    }
 
-        vec2f operator*(const float k) const{
-            return vec2f(x*k, y*k);
-        }
-
-        vec2f operator/(const float k) const{
-            return vec2f(x/k, y/k);
-        }
-
-        float mag(const vec2f &vec){
-            return (float)sqrt((vec.x * vec.x) + (vec.y * vec.y));
-        }
-
-        vec2f normalize(const vec2f &vec){
-            float len = mag(vec);
-            return vec2f(vec.x/len, vec.y/len);
-        }
-
-        float dot(const vec2f &vec1, const vec2f &vec2){
-            return (vec1.x * vec1.x) + (vec2.y * vec2.y);
-        }
-
-        float dis(const vec2f vec1, const vec2f vec2){
-            return (float)sqrt((vec1.x - vec2.x)*(vec1.x - vec2.x) + (vec1.y - vec2.y)*(vec1.y - vec2.y));
-        }
+    bool createBody(uint32_t x, uint32_t y, const CHAR_INFO& sym) {
+        if (x >= W || y >= H) return false;
+        body[y * W + x] = sym;
+        return true;
+    }
 };
 
-class Engine{
+
+class Engine : public Sprite{
     
     private:
         CHAR_INFO *Primaryscreen;
@@ -196,13 +217,13 @@ class Engine{
 
 
         void
-        Draw(const vec2f pos, const wchar_t& sym, const WORD color = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE){
+        Draw(const vec2f pos, const CHAR_INFO &sym){
             int x = pos.x, y = pos.y;
             if((x < 0 || x >= secScreenWidth) ||(y < 0 || y >= secScreenHeight) ) return;
 
             int index = y * secScreenWidth + x;
-            Secondaryscreen[index].Char.UnicodeChar = sym;
-            Secondaryscreen[index].Attributes = color;
+            Secondaryscreen[index].Char.UnicodeChar = sym.Char.UnicodeChar;
+            Secondaryscreen[index].Attributes = sym.Attributes;
         }
 
         void
@@ -232,6 +253,20 @@ class Engine{
                 screen[index + i].Attributes = color;
             }
         }
+
+        bool DrawSprite(const Sprite& sprite) {
+            vec2f pos;
+
+            for (uint32_t y = 0; y < sprite.H; y++) {
+                for (uint32_t x = 0; x < sprite.W; x++) {
+                    pos.x = sprite.point.x + x;
+                    pos.y = sprite.point.y + y;
+                    Draw(pos, sprite.body[y * sprite.W + x]);
+                }
+            }
+            return true;
+        }
+
 
         void clear(WORD color = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE, wchar_t clear_sym = ' ')
         {
@@ -335,35 +370,67 @@ class dummy: public Engine{
     public:
 
         vec2f pos = {0.0f, 0.0f};
+        vec2f coord = {0,29};
         vec2f velocity = {23.0,20.0};
+        Sprite square = Sprite(3,3);
 
-        bool create() override{
-            if(!construct()){std::cerr << "Console construction failed!" << std::endl; return false;}
+        wchar_t box[9] = {'#', '#' , '#'
+                         ,'#',  ' ', '#'
+                         ,'#', '#', '#'};
+
+        bool create() override {
+            if (!construct()) {
+                std::cerr << "Console construction failed!\n";
+                return false;
+            }
+
+            square.point = {1, 1};
+
+            for (int y = 0; y < 3; y++) {
+                for (int x = 0; x < 3; x++) {
+                    CHAR_INFO temp{};
+                    temp.Char.UnicodeChar = box[y * 3 + x];
+                    temp.Attributes = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE;
+                    square.createBody(x, y, temp);
+                }
+            }
+
             clear();
             return true;
         }
+
 
         void scene(){
             DrawString(pos, L"Hi! From Console");
         }
 
-        bool update(float elapsedT) override{
+        // bool update(float elapsedT) override{
 
-            std::string str = "X: " + std::to_string(velocity.x) + " Y: " + std::to_string(velocity.y);
-            std::wstring wstr(str.begin(), str.end());
+        //     std::string str = "X: " + std::to_string(velocity.x) + " Y: " + std::to_string(velocity.y);
+        //     std::wstring wstr(str.begin(), str.end());
 
-            if(keys[KEY_UP].pressed) {velocity.y++; }
-            if(keys[KEY_DOWN].pressed) {velocity.y--; }
-            if(keys[KEY_RIGHT].pressed) {velocity.x++; }
-            if(keys[KEY_LEFT].pressed) {velocity.x--;}
             
-            DrawString({0,28}, wstr);
+        //     DrawString({0,28}, wstr);
 
-            if(keys['W'].held) {pos.y -= velocity.y * elapsedT; DrawString({0,29},L"pressed w");}
-            if(keys['S'].held) {pos.y += velocity.y * elapsedT; DrawString({0,29},L"pressed s");}
-            if(keys['A'].held) {pos.x -= velocity.x * elapsedT; DrawString({0,29},L"pressed a");}
-            if(keys['D'].held) {pos.x += velocity.x * elapsedT; DrawString({0,29},L"pressed d");}
-            scene();
+        //     if(keys['W'].held) {pos.y -= velocity.y * elapsedT; DrawString({0,29},L"pressed w");}
+        //     if(keys['S'].held) {pos.y += velocity.y * elapsedT; DrawString({0,29},L"pressed s");}
+        //     if(keys['A'].held) {pos.x -= velocity.x * elapsedT; DrawString({0,29},L"pressed a");}
+        //     if(keys['D'].held) {pos.x += velocity.x * elapsedT; DrawString({0,29},L"pressed d");}
+        //     scene();
+        //     return true;
+        // }
+
+        bool update(float elapsedT) override{
+            if(keys[MOUSE_LEFT].held){
+                velocity.x = 100;
+            }
+            else velocity.x = 23;
+            if(keys['W'].held) {square.point.y -= velocity.y * elapsedT; DrawString(coord,L"pressed w");}
+            if(keys['S'].held) {square.point.y += velocity.y * elapsedT; DrawString(coord,L"pressed s");}
+            if(keys['A'].held) {square.point.x -= velocity.x * elapsedT; DrawString(coord,L"pressed a");}
+            if(keys['D'].held) {square.point.x += velocity.x * elapsedT; DrawString(coord,L"pressed d");}
+
+            DrawSprite(square);
             return true;
         }
 
