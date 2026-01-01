@@ -5,11 +5,48 @@
 #include<vector>
 #include "keys.h"
 #include <cmath>
+#include <fstream>
+#include <sstream>
 // #include <windows.h>
 
 //Macros
 #define PI 22/7
 
+enum COLOUR
+{
+	FG_BLACK		= 0x0000,
+	FG_DARK_BLUE    = 0x0001,	
+	FG_DARK_GREEN   = 0x0002,
+	FG_DARK_CYAN    = 0x0003,
+	FG_DARK_RED     = 0x0004,
+	FG_DARK_MAGENTA = 0x0005,
+	FG_DARK_YELLOW  = 0x0006,
+	FG_GREY			= 0x0007,
+	FG_DARK_GREY    = 0x0008,
+	FG_BLUE			= 0x0009,
+	FG_GREEN		= 0x000A,
+	FG_CYAN			= 0x000B,
+	FG_RED			= 0x000C,
+	FG_MAGENTA		= 0x000D,
+	FG_YELLOW		= 0x000E,
+	FG_WHITE		= 0x000F,
+	BG_BLACK		= 0x0000,
+	BG_DARK_BLUE	= 0x0010,
+	BG_DARK_GREEN	= 0x0020,
+	BG_DARK_CYAN	= 0x0030,
+	BG_DARK_RED		= 0x0040,
+	BG_DARK_MAGENTA = 0x0050,
+	BG_DARK_YELLOW	= 0x0060,
+	BG_GREY			= 0x0070,
+	BG_DARK_GREY	= 0x0080,
+	BG_BLUE			= 0x0090,
+	BG_GREEN		= 0x00A0,
+	BG_CYAN			= 0x00B0,
+	BG_RED			= 0x00C0,
+	BG_MAGENTA		= 0x00D0,
+	BG_YELLOW		= 0x00E0,
+	BG_WHITE		= 0x00F0,
+};
 
 //classes
 
@@ -72,31 +109,33 @@ class Angle{
 
 };
 
+
+
 class Sprite {
 public:
-    uint32_t H = 0, W = 0;
+    uint32_t H = 0;
+    uint32_t W = 0;
     vec2f point{0.0f, 0.0f};
     CHAR_INFO* body = nullptr;
 
     Sprite() = default;
 
-    Sprite(uint32_t h, uint32_t w) : H(h), W(w) {
-        body = new CHAR_INFO[W * H]{};
-    }
+    Sprite(uint32_t h, uint32_t w) : H(h), W(w) {}
 
     ~Sprite() {
         delete[] body;
     }
 
-    bool createBody(uint32_t x, uint32_t y, const CHAR_INFO& sym) {
-        if (x >= W || y >= H) return false;
-        body[y * W + x] = sym;
-        return true;
-    }
+    // bool createBody(uint32_t x, uint32_t y, const CHAR_INFO& sym) {
+    //     if (x >= W || y >= H) return false;
+    //     body[y * W + x] = sym;
+    //     return true;
+    // }
+
 };
 
 
-class Engine : public Sprite{
+class Engine{
     
     private:
         CHAR_INFO *Primaryscreen;
@@ -119,12 +158,13 @@ class Engine : public Sprite{
         int32_t frameTime;
         bool keepBorder = true;
         uint32_t refreshRate = 60; // FPS
+        
         struct key{
             bool pressed = false;
             bool released = false;
             bool held = false;
         } keys[256];
-
+        
         vec2f pos = {0.0f, 0.0f};
 
         ~Engine() { // destructor
@@ -331,11 +371,82 @@ class Engine : public Sprite{
             return true;
         }
 
+        bool create(){
+            if(!construct()){std::cerr<<"construction of console and screen failed" << std::endl;
+            return false;}
+            return true;
+        }
+
+        
+        Sprite LoadSpriteFromFile(const std::string& path, WORD color =  FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE)
+        {
+            std::wifstream file(path);
+            file.imbue(std::locale(""));
+
+            if (!file.is_open())
+                throw std::runtime_error("Failed to open sprite file");
+
+            uint32_t W, H;
+            file >> W >> H;
+            file.ignore(std::numeric_limits<std::streamsize>::max(), L'\n');
+
+            Sprite sprite(H, W);
+            sprite.body = new CHAR_INFO[W * H];
+
+            std::wstring line;
+
+            // ─────────────────────────────
+            // Skip blank line
+            // ─────────────────────────────
+            std::getline(file, line);
+
+            // ─────────────────────────────
+            // Read character glyphs
+            // ─────────────────────────────
+            for (uint32_t y = 0; y < H; y++)
+            {
+                std::getline(file, line);
+
+                for (uint32_t x = 0; x < W; x++)
+                {
+                    sprite.body[y * W + x].Char.UnicodeChar = line[x];
+                }
+            }
+
+            // ─────────────────────────────
+            // Skip blank line
+            // ─────────────────────────────
+            std::getline(file, line);
+
+            // ─────────────────────────────
+            // Read color attributes
+            // ─────────────────────────────
+            
+            for (uint32_t y = 0; y < H; y++)
+            {
+                std::getline(file, line);
+                std::wstringstream ss(line);
+
+                for (uint32_t x = 0; x < W; x++)
+                {
+                    unsigned int attr;
+                    ss >> std::hex >> attr;
+                    color = static_cast<short>(attr);
+                    sprite.body[y * W + x].Attributes = color;
+                }
+            }
+
+            return sprite;
+        }
+
+        
         void
         run(){
 
-            if(!create()){std::cerr << "creation failed!" << std::endl;}
+            if(!create()){std::cerr << "creation failed!" << std::endl; return;}
             std::chrono::time_point tp1 =  std::chrono::steady_clock::now();
+
+            if(!load()){std::cerr << "loading failed" << std::endl; return;}
 
             //Game loop
             while(1){
@@ -346,6 +457,7 @@ class Engine : public Sprite{
                 std::chrono::duration<float> elapsedTime = tp2 - tp1;
                 tp1 = tp2;
 
+                clear();
                 updateInput();
                 update(elapsedTime.count());
                 render();
@@ -353,10 +465,9 @@ class Engine : public Sprite{
                 Sleep(1000/(float)refreshRate);
             }
         }
-        
 
         virtual bool
-        create(){return true;}
+        load(){return true;}
 
         virtual bool
         update(float elapsedT){ return true;}
@@ -367,89 +478,34 @@ class Engine : public Sprite{
 
 class dummy: public Engine{
 
-    public:
+    vec2f velocity{23,0};
 
-        vec2f pos = {0.0f, 0.0f};
-        vec2f coord = {0,29};
-        vec2f velocity = {23.0,20.0};
-        Sprite square = Sprite(3,3);
-
-        wchar_t box[9] = {'#', '#' , '#'
-                         ,'#',  ' ', '#'
-                         ,'#', '#', '#'};
-
-        bool create() override {
-            if (!construct()) {
-                std::cerr << "Console construction failed!\n";
-                return false;
-            }
-
-            square.point = {1, 1};
-
-            for (int y = 0; y < 3; y++) {
-                for (int x = 0; x < 3; x++) {
-                    CHAR_INFO temp{};
-                    temp.Char.UnicodeChar = box[y * 3 + x];
-                    temp.Attributes = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE;
-                    square.createBody(x, y, temp);
-                }
-            }
-
-            clear();
-            return true;
-        }
-
-
-        void scene(){
-            DrawString(pos, L"Hi! From Console");
-        }
-
-        // bool update(float elapsedT) override{
-
-        //     std::string str = "X: " + std::to_string(velocity.x) + " Y: " + std::to_string(velocity.y);
-        //     std::wstring wstr(str.begin(), str.end());
-
-            
-        //     DrawString({0,28}, wstr);
-
-        //     if(keys['W'].held) {pos.y -= velocity.y * elapsedT; DrawString({0,29},L"pressed w");}
-        //     if(keys['S'].held) {pos.y += velocity.y * elapsedT; DrawString({0,29},L"pressed s");}
-        //     if(keys['A'].held) {pos.x -= velocity.x * elapsedT; DrawString({0,29},L"pressed a");}
-        //     if(keys['D'].held) {pos.x += velocity.x * elapsedT; DrawString({0,29},L"pressed d");}
-        //     scene();
-        //     return true;
-        // }
-
-        bool update(float elapsedT) override{
-            if(keys[MOUSE_LEFT].held){
-                velocity.x = 100;
-            }
-            else velocity.x = 23;
-            if(keys['W'].held) {square.point.y -= velocity.y * elapsedT; DrawString(coord,L"pressed w");}
-            if(keys['S'].held) {square.point.y += velocity.y * elapsedT; DrawString(coord,L"pressed s");}
-            if(keys['A'].held) {square.point.x -= velocity.x * elapsedT; DrawString(coord,L"pressed a");}
-            if(keys['D'].held) {square.point.x += velocity.x * elapsedT; DrawString(coord,L"pressed d");}
-
-            DrawSprite(square);
-            return true;
-        }
-
-        bool render() override{
-            Compose();
-            writePrimaryScreenBuffer();
-            clear();
-            return true;
-        }
-
-
+    Sprite car;
+    bool load(){
+        car = LoadSpriteFromFile("car.txt");
+        return true;
+    }
+    bool update(float t){
+        if(keys['A'].held) car.point.x += velocity.x * t;
+        if(keys['D'].held) car.point.x -= velocity.x * t;
         
+        DrawSprite(car);
+        return true;
+    }
+
+    bool render(){
+        Compose();
+        writePrimaryScreenBuffer();
+        return true;
+    }
+
 };
 
 int
 main(){
-
     dummy d;
     d.refreshRate = 60;
     d.run();
+    std::cout << "DONE!";
     return 0;
 }
