@@ -104,6 +104,23 @@ enum COLOUR
 	BG_WHITE		= 0x00F0,
 };
 
+// for printing error msg on to classic consoles
+int 
+wdie(const char *msg)
+{
+    fprintf(stderr, "ERROR: %lu\nError: %s\nPress ENTER to continue...\n",GetLastError(), msg);
+    getchar();
+    return -1;
+}
+
+int
+die(const char *msg)
+{
+    fprintf(stderr, "Error: %s\nPress ENTER to continue...\n",msg);
+    getchar();
+    return -1;
+}
+
 //classes
 // vector class
 class vec2f{
@@ -128,7 +145,7 @@ class vec2f{
         }
 
         vec2f operator/(const float k) const{
-            if(!k){ throw std::runtime_error("vec2f: Division by zero");}
+            if(!k){ die("vec2f: Division by zero");}
             return vec2f(x/k, y/k);
         }
 
@@ -138,7 +155,7 @@ class vec2f{
 
         static vec2f normalize(const vec2f &vec){
             float len = mag(vec);
-            if (!len) {throw std::runtime_error("vec2f: Cannot normalize zero-length vector");}
+            if (!len) {die("vec2f: Cannot normalize zero-length vector");}
             return vec2f(vec.x/len, vec.y/len);
         }
 
@@ -237,9 +254,11 @@ class Engine{
         void
         writePrimaryScreenBuffer(const COORD coord = {0, 0}){
             int back = 1 - activeBuffer;
-            WriteConsoleOutputW(hconsolebuffer[back], Primaryscreen, {(SHORT)primaryScreenWidth, (SHORT)primaryScreenHeight} , coord, &windowSize);
+            if(!WriteConsoleOutputW(hconsolebuffer[back], Primaryscreen, {(SHORT)primaryScreenWidth, (SHORT)primaryScreenHeight} , coord, &windowSize)) 
+                wdie("In consoleGameFramework At writePrimaryScreenbuffer()\n Error while writting Primaryscreen through WriteConsoleOutputW");
             activeBuffer = back;
-            SetConsoleActiveScreenBuffer(hconsolebuffer[activeBuffer]);
+            if(!SetConsoleActiveScreenBuffer(hconsolebuffer[activeBuffer]))
+                wdie("In consoleGameFramework At writePrimaryScreenbuffer()\n Error at SetConsoleActiveScreenBuffer");
         }
 
         // creates border for console screen
@@ -267,13 +286,13 @@ class Engine{
             cfi.FontWeight = FW_NORMAL;
             wcscpy_s(cfi.FaceName, L"Consolas");
 
-            SetCurrentConsoleFontEx(hConsole, FALSE, &cfi);
+            if(!SetCurrentConsoleFontEx(hConsole, FALSE, &cfi)) wdie("In ConsoleGameFrame at SetConsoleFont");
         }
 
         bool CanCreateConsole(HANDLE hConsole, int32_t w, int32_t h, COORD& maxSize)
         {
             maxSize = GetLargestConsoleWindowSize(hConsole);
-
+            
             if (maxSize.X == 0 || maxSize.Y == 0)
                 return false;
 
@@ -475,7 +494,7 @@ class Engine{
             std::wifstream file(path);
 
             if (!file.is_open())
-                throw std::runtime_error("Failed to open sprite file");
+                die("In ConsoleGameFramework at LoadSpriteFromFile(): Failed to open sprite file");
 
             uint32_t W, H;
             file >> W >> H;
@@ -542,7 +561,7 @@ class Engine{
             if(!create(fw, fh, W, H)){std::cerr << "creation failed!" << std::endl; return;}
             std::chrono::time_point tp1 =  std::chrono::steady_clock::now();
 
-            if(!load()){std::cerr << "loading failed" << std::endl; return;}
+            if(!load()){die(" In ConsoleGameFramework at run(): load(); loading failed"); return;}
 
             //Game loop
             while(1){
@@ -563,7 +582,7 @@ class Engine{
         }
 
         bool create(const short fw = 8, const short fh = 16, const int32_t W = 140, const int32_t H = 40 ) {
-            if(!construct(fw, fh, W, H)){std::cerr<<"construction of console and screen failed" << std::endl;
+            if(!construct(fw, fh, W, H)){die("In ConsoleGameFrame at create(): construct(): construction of console and screen failed");
             return false;}
             return true;
         }
@@ -576,4 +595,5 @@ class Engine{
 
         virtual bool
         render(){ return true;}
+
 };
