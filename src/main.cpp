@@ -1,4 +1,5 @@
 #include<bits/stdc++.h>
+#include <stdlib.h>
 #include<stdio.h>
 #include<algorithm>
 #include<chrono>
@@ -7,6 +8,7 @@
 #include <cmath>
 #include <fstream>
 #include <sstream>
+#include <clocale>
 // #include <windows.h>
 
 //Macros
@@ -49,7 +51,7 @@ enum COLOUR
 };
 
 //classes
-
+// vector class
 class vec2f{
     public:
         float x;
@@ -58,6 +60,7 @@ class vec2f{
         vec2f(){}
         vec2f(float X, float Y){ x = X; y = Y;}
 
+        //overloaded operator
         vec2f operator+(const vec2f &vec) const{
             return vec2f(x + vec.x, y + vec.y);
         }
@@ -71,6 +74,7 @@ class vec2f{
         }
 
         vec2f operator/(const float k) const{
+            if(!k){ throw std::runtime_error("vec2f: Division by zero");}
             return vec2f(x/k, y/k);
         }
 
@@ -80,6 +84,7 @@ class vec2f{
 
         static vec2f normalize(const vec2f &vec){
             float len = mag(vec);
+            if (!len) {throw std::runtime_error("vec2f: Cannot normalize zero-length vector");}
             return vec2f(vec.x/len, vec.y/len);
         }
 
@@ -149,12 +154,12 @@ class Engine{
         SMALL_RECT windowSize;
         HANDLE hOriginal;
         CONSOLE_SCREEN_BUFFER_INFO originalInfo;
-        HANDLE hconsolebuffer[2];
         DWORD written = 0;
         uint32_t activeBuffer = 0;
 
 
     public:
+        HANDLE hconsolebuffer[2];
         int32_t frameTime;
         bool keepBorder = true;
         uint32_t refreshRate = 60; // FPS
@@ -197,10 +202,35 @@ class Engine{
             }
         }
 
+        void SetConsoleFont(HANDLE hConsole, short fontW, short fontH)
+        {
+            CONSOLE_FONT_INFOEX cfi;
+            cfi.cbSize = sizeof(CONSOLE_FONT_INFOEX);
+            cfi.nFont = 0;
+            cfi.dwFontSize.X = fontW;   // width of each cell
+            cfi.dwFontSize.Y = fontH;   // height of each cell
+            cfi.FontFamily = FF_DONTCARE;
+            cfi.FontWeight = FW_NORMAL;
+            wcscpy_s(cfi.FaceName, L"Consolas");
+
+            SetCurrentConsoleFontEx(hConsole, FALSE, &cfi);
+        }
+
+        bool CanCreateConsole(HANDLE hConsole, int32_t w, int32_t h, COORD& maxSize)
+        {
+            maxSize = GetLargestConsoleWindowSize(hConsole);
+
+            if (maxSize.X == 0 || maxSize.Y == 0)
+                return false;
+
+            return (w <= maxSize.X && h <= maxSize.Y);
+        }
+
+
         // constructs allocates console ,ConsoleScreen buffers, constructs primary, secondary screen buffers 
         // and initializes variables
         bool 
-        construct(const int32_t W = 120, const int32_t H = 30)
+        construct(short fw, short fh, const int32_t W, const int32_t H)
         {
             secScreenWidth = W;
             secScreenHeight = H;
@@ -215,12 +245,27 @@ class Engine{
 
             if (GetConsoleWindow() == NULL) {
                 AllocConsole();
+                freopen("CONIN$", "r", stdin);
+                freopen("CONOUT$", "w", stdout);
+                freopen("CONOUT$", "w", stderr);
             }
 
             // Creates TWO console screen buffers
             for (int i = 0; i < 2; i++) {
                 hconsolebuffer[i] = CreateConsoleScreenBuffer(GENERIC_READ | GENERIC_WRITE,0,NULL,CONSOLE_TEXTMODE_BUFFER,NULL);
                 if (hconsolebuffer[i] == INVALID_HANDLE_VALUE) return false;
+                SetConsoleFont(hconsolebuffer[i], fw, fh); // try (6,12), (8,16), (10,20)
+            }
+
+            COORD maxSize;
+            if (!CanCreateConsole( hconsolebuffer[0], primaryScreenWidth,primaryScreenHeight,maxSize))
+            {
+                printf("ERROR: Requested console size too large\n");
+                printf("Requested: %d x %d \n", secScreenWidth, secScreenHeight);
+                printf("Maximum allowed: %d x %d \n", maxSize.X - 2, maxSize.Y-2 );
+                printf("Press ESC to quit");
+                while(1){if(GetAsyncKeyState(VK_ESCAPE) & 0x8000) break;}
+                return false;
             }
 
             SMALL_RECT tempRect = {0, 0, 1, 1};
@@ -370,18 +415,10 @@ class Engine{
             }
             return true;
         }
-
-        bool create(){
-            if(!construct()){std::cerr<<"construction of console and screen failed" << std::endl;
-            return false;}
-            return true;
-        }
-
         
         Sprite LoadSpriteFromFile(const std::string& path, WORD color =  FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE)
         {
             std::wifstream file(path);
-            file.imbue(std::locale(""));
 
             if (!file.is_open())
                 throw std::runtime_error("Failed to open sprite file");
@@ -407,9 +444,14 @@ class Engine{
             {
                 std::getline(file, line);
 
+                std::wstringstream ss(line);
+
                 for (uint32_t x = 0; x < W; x++)
                 {
-                    sprite.body[y * W + x].Char.UnicodeChar = line[x];
+                    unsigned int glyph;
+                    ss >> std::hex >> glyph;   // read hex value like 2588
+
+                    sprite.body[y * W + x].Char.UnicodeChar = static_cast<wchar_t>(glyph);
                 }
             }
 
@@ -441,9 +483,9 @@ class Engine{
 
         
         void
-        run(){
+        run(const short fw = 8, const short fh = 16, const int32_t W = 140, const int32_t H = 40){
 
-            if(!create()){std::cerr << "creation failed!" << std::endl; return;}
+            if(!create(fw, fh, W, H)){std::cerr << "creation failed!" << std::endl; return;}
             std::chrono::time_point tp1 =  std::chrono::steady_clock::now();
 
             if(!load()){std::cerr << "loading failed" << std::endl; return;}
@@ -466,6 +508,12 @@ class Engine{
             }
         }
 
+        bool create(const short fw = 8, const short fh = 16, const int32_t W = 140, const int32_t H = 40 ) {
+            if(!construct(fw, fh, W, H)){std::cerr<<"construction of console and screen failed" << std::endl;
+            return false;}
+            return true;
+        }
+
         virtual bool
         load(){return true;}
 
@@ -478,18 +526,23 @@ class Engine{
 
 class dummy: public Engine{
 
-    vec2f velocity{23,0};
+    vec2f velocity{20,20};
 
     Sprite car;
     bool load(){
-        car = LoadSpriteFromFile("car.txt");
+        car = LoadSpriteFromFile("dummy.txt");
         return true;
     }
-    bool update(float t){
-        if(keys['A'].held) car.point.x += velocity.x * t;
-        if(keys['D'].held) car.point.x -= velocity.x * t;
-        
+    bool update(float t){     
+        if(keys['D'].held) car.point.x += velocity.x * t;
+        if(keys['A'].held) car.point.x -= velocity.x * t;
+        if(keys['S'].held) car.point.y += velocity.y * t;
+        if(keys['W'].held) car.point.y -= velocity.y * t;
+
         DrawSprite(car);
+        car.point.x += 4; 
+        DrawSprite(car);
+        car.point.x -= 4;
         return true;
     }
 
@@ -501,11 +554,12 @@ class dummy: public Engine{
 
 };
 
-int
-main(){
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,LPSTR lpCmdLine, int nCmdShow) {
+
     dummy d;
+    d.keepBorder = false;
     d.refreshRate = 60;
-    d.run();
-    std::cout << "DONE!";
-    return 0;
+    d.run(8,16,140,50);
+
+    return EXIT_SUCCESS;
 }

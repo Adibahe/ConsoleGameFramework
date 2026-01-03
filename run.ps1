@@ -35,6 +35,7 @@ Get-ChildItem $Src -File | Where-Object {
         $srcFile `
         -o $outExe `
         -I"$Header" `
+        -mwindows `
 }
 # --- Run executable if argument provided ---
 if ($Run) {
