@@ -10,21 +10,21 @@ A **console-based game framework built completely from scratch in C++**, without
 - Modular design for multiple games
 
 ## Games Built
+
 ### Game of Life
-- Full implementation of Conway’s Game of Life
+- Complete implementation of Conway’s Game of Life
 - Efficient state updates and board swapping
-- Has a draw feature to draw cells and play with it
+- Interactive draw feature to create and experiment with patterns
 
-📸 *![image](\images\image.png)*
-
+![Game of Life](images/image.png)
 
 ### Ever-Changing Maze
 - Does **not** use DFS
 - Uses a custom **Origin Shift Algorithm**
 - Faster than DFS-based maze generation
-- Generates a unique maze every run
+- Generates a unique maze on every run
 
-📸 *![image](\images\maze.png)*
+![Ever-Changing Maze](images/maze.png)
 
 ## Learnings
 - Building a game framework from scratch
